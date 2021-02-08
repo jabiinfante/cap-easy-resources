@@ -1,6 +1,6 @@
 {
   "name": "cap-easy-resources",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "",
   "main": "build/main.js",
   "bin": "./cli.js",
@@ -10,7 +10,15 @@
     "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["capacitor", "ionic", "cordova", "resources", "native", "icon", "splashscreen"],
+  "keywords": [
+    "capacitor",
+    "ionic",
+    "cordova",
+    "resources",
+    "native",
+    "icon",
+    "splashscreen"
+  ],
   "author": {
     "name": "Javier Infante",
     "email": "jabi@irontec.com"
