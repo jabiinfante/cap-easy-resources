@@ -4,7 +4,7 @@ A simple and intuitive cli tool designed for automatic generation of icon and sp
 
 It's built on top of **[cordova-res](https://www.npmjs.com/package/cordova-res)**, and it only requires **one single image** for automatic generation of your app resouces.
 
-![screencast](resources/sample.gif)
+![screencast](https://raw.githubusercontent.com/jabiinfante/cap-easy-resources/main/resources/sample.gif)
 
 
 ## Usage
