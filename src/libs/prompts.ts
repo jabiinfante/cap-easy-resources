@@ -5,6 +5,7 @@ import * as fuzzyPath from 'inquirer-fuzzy-path';
 import { resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { Gradient, SolidBackground } from '../interfaces/background';
 
 inquirer.registerPrompt('fuzzypath', fuzzyPath);
 
@@ -26,21 +27,9 @@ export function askForPath(message: string, itemType: 'file' | 'directory' = 'fi
   );
 }
 
-export function askForColor(message: string, opts: { [index: string]: unknown } = {}): Observable<{ r: number, g: number, b: number }> {
+export function askForColor(message: string): Observable<SolidBackground> {
   return defer(() =>
-    inquirer.prompt([{
-      type: 'string',
-      message,
-      name: 'color',
-      transformer: function (color) {
-        color = color[0] !== '#' ? `#${color}` : color;
-        return chalkPipe(color)(color);
-      },
-      validate: function (color) {
-        return !!hexRgb(color);
-      },
-      ...opts
-    }])
+    inquirer.prompt([_getColorPrompt(message, 'color')])
   ).pipe(
     map(({ color }) => {
       const { red: r, green: g, blue: b } = hexRgb(color);
@@ -65,7 +54,6 @@ export function askForRatio(message: string, opts: { [index: string]: unknown } 
   );
 }
 
-
 export function askForConfirmation(message: string, opts: { [index: string]: unknown } = {}): Observable<boolean> {
   return defer(() =>
     inquirer.prompt([{
@@ -77,4 +65,54 @@ export function askForConfirmation(message: string, opts: { [index: string]: unk
   ).pipe(
     map(({ confirmation }) => !!confirmation)
   );
+}
+
+export function askForList(message: string, choices: Array<string>): Observable<string> {
+  return defer(() =>
+    inquirer.prompt([{
+      message,
+      type: 'list',
+      name: 'choice',
+      choices
+    }])
+  ).pipe(
+    map(({ choice }) => choice)
+  );
+}
+
+export function askForGradient(message: string): Observable<Gradient> {
+  return defer(() =>
+    inquirer.prompt([
+      _getColorPrompt(`${message} (color1)`, 'color1'),
+      _getColorPrompt(`${message} (color2)`, 'color2'),
+      {
+        type: 'number',
+        name: 'angle',
+        message: `${message} (angle)`,
+        transformer: function (ratio) {
+          return ratio >= 0 
+            ? ratio > 360 ? 360 : ratio
+            : ratio < -360 ? -360 : ratio;
+        }
+      }
+    ])
+  ).pipe(
+    map(({ color1, color2, angle}) => ({color1, color2, angle}))
+  );
+}
+
+
+function _getColorPrompt(message: string, name: string): { [index: string]: unknown } {
+  return {
+    type: 'string',
+    message,
+    name,
+    transformer: function (color) {
+      color = color[0] !== '#' ? `#${color}` : color;
+      return chalkPipe(color)(color);
+    },
+    validate: function (color) {
+      return !!hexRgb(color);
+    }
+  };
 }

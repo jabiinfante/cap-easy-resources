@@ -2,7 +2,7 @@
   "name": "cap-easy-resources",
   "version": "0.0.2",
   "description": "",
-  "main": "build/main.js",
+  "main": "dist/main.js",
   "bin": "./cli.js",
   "scripts": {
     "start": "webpack --env development --watch",
@@ -39,7 +39,7 @@
     "yargs": "^16.2.0"
   },
   "files": [
-    "build/main.js",
+    "dist/main.js",
     "package.json",
     "cli.js",
     "README.md",
@@ -50,6 +50,7 @@
     "@types/sharp": "^0.27.1",
     "chalk-pipe": "^5.0.0",
     "hex-rgb": "^4.2.0",
+    "rgb-hex": "^3.0.0",
     "rxjs": "^6.6.3",
     "ts-loader": "^8.0.15",
     "typescript": "^4.1.3",

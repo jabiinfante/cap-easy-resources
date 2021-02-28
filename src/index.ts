@@ -1,14 +1,16 @@
 import { Options, run } from 'cordova-res';
 import { existsSync, mkdtemp, rmdir } from 'fs';
+import hexRgb from 'hex-rgb';
 import { tmpdir } from 'os';
 import { join, sep } from 'path';
 import { performance } from 'perf_hooks';
 import { concat, defer, iif, of } from 'rxjs';
-import { map, switchMap, tap, toArray } from 'rxjs/operators';
+import { finalize, map, switchMap, tap, toArray } from 'rxjs/operators';
 import { promisify } from 'util';
+import { Gradient } from './interfaces/background';
 import { createImage } from './libs/images';
-import { getParams } from './libs/params';
-import { askForColor, askForConfirmation, askForPath, askForRatio } from './libs/prompts';
+import { createCmd, getParams } from './libs/params';
+import { askForColor, askForConfirmation, askForGradient, askForList, askForPath, askForRatio } from './libs/prompts';
 
 const ICON_SIZE = 1024;
 const SPLASH_SIZE = 2732;
@@ -22,7 +24,7 @@ of(getParams()).pipe(
         () => !params['projectPath'],
         askForPath('Select capacitor project path', 'directory'),
         of(params['projectPath']).pipe(
-          tap(x => console.log(`🔹 Project Path set: ${x}`))
+          tap(path => console.log(`🔹 Project Path set: ${path}`))
         )
       ),
       iif(
@@ -33,10 +35,34 @@ of(getParams()).pipe(
         )
       ),
       iif(
-        () => !params['iconBgcolor'],
-        askForColor('Enter icon background color'),
-        of(params['iconBgcolor']).pipe(
-          tap(x => console.log(`🔹 Icon background color set: ${x}`))
+        () => !params.iconBgcolor && !params.iconBgGradColor1 && !params.iconBgGradColor2 && !params.iconBgGradAngle,
+        askForList('Select background type for icon', ['solid color', 'gradient']).pipe(
+          switchMap(choice =>
+            iif(
+              () => choice === 'solid color',
+              askForColor('Enter icon background color'),
+              askForGradient('Enter icon background gradient')
+            )
+          )
+        ),
+        iif(
+          () => !!params.iconBgcolor,
+          of(params.iconBgcolor).pipe(
+            map(color => {
+              color = color[0] !== '#' ? `#${color}` : color;
+              const parsedColor = hexRgb(color);
+              if (!parsedColor) {
+                throw 'Invalid color for icon background.';
+              } else {
+                const { red: r, green: g, blue: b } = parsedColor;
+                return { r, g, b };
+              }
+            }),
+            tap(p => console.log(`🔹 Icon background set: rgb(${Object.values(p)})`))
+          ),
+          of({ color1: params.iconBgGradColor1, color2: params.iconBgGradColor2, angle: parseInt(params.iconBgGradAngle, 10) }).pipe(
+            tap((p: Gradient) => console.log(`🔹 Icon image background gradient set: ${p.color1}, ${p.color2} (${p.angle}deg)`))
+          )
         )
       ),
       iif(
@@ -54,10 +80,34 @@ of(getParams()).pipe(
         )
       ),
       iif(
-        () => !params['splashBgcolor'],
-        askForColor('Enter splash screen background color'),
-        of(params['splashBgcolor']).pipe(
-          tap(p => console.log(`🔹 Splash background color set: ${p}`))
+        () => !params.splashBgcolor && !params.splashBgGradColor1 && !params.splashBgGradColor2 && !params.splashBgGradAngle,
+        askForList('Select background type for splash screen', ['solid color', 'gradient']).pipe(
+          switchMap(choice =>
+            iif(
+              () => choice === 'solid color',
+              askForColor('Enter splash screen background color'),
+              askForGradient('Enter splash screen background gradient')
+            )
+          )
+        ),
+        iif(
+          () => !!params.splashBgcolor,
+          of(params.splashBgcolor).pipe(
+            map(color => {
+              color = color[0] !== '#' ? `#${color}` : color;
+              const parsedColor = hexRgb(color);
+              if (!parsedColor) {
+                throw 'Invalid color for splash background.';
+              } else {
+                const { red: r, green: g, blue: b } = parsedColor;
+                return { r, g, b };
+              }
+            }),
+            tap(p => console.log(`🔹 Splash image background set: rgb(${Object.values(p)})`))
+          ),
+          of({ color1: params.splashBgGradColor1, color2: params.splashBgGradColor2, angle: parseInt(params.splashBgGradAngle, 10) }).pipe(
+            tap((p: Gradient) => console.log(`🔹 Splash image background gradient set: ${p.color1}, ${p.color2} (${p.angle}deg)`))
+          )
         )
       ),
       iif(
@@ -68,24 +118,24 @@ of(getParams()).pipe(
         )
       ),
       iif(
-        () => !params['android'],
+        () => params['android'] === null,
         askForConfirmation('Build resources for android'),
         of(params['android']).pipe(
-          tap(p => console.log(`🔹 Building resources for android: ${p ? '👍' : '👎'}`))
+          tap(p => console.log(`🔹 Building resources for android: ${p ? '✅' : '❌'}`))
         )
       ),
       iif(
-        () => !params['ios'],
+        () => params['ios'] === null,
         askForConfirmation('Build resources for iOS'),
         of(params['ios']).pipe(
-          tap(p => console.log(`🔹 Building resources for ios: ${p ? '👍' : '👎'}`))
+          tap(p => console.log(`🔹 Building resources for ios: ${p ? '✅' : '❌'}`))
         )
       ),
       defer(() => promisify(mkdtemp)(`${tmpdir()}${sep}capResources`))
     )
   ),
   toArray<any>(),
-  map(([projectPath, iconImage, iconBgColor, iconRatio, splashImage, splashBgColor, splashRatio, android, ios, resourcesDirectory]) => {
+  map(([projectPath, iconImage, iconBg, iconRatio, splashImage, splashBg, splashRatio, android, ios, resourcesDirectory]) => {
 
     if (android && !existsSync(join(projectPath, 'android'))) {
       console.warn('🔴 No android platform folder found. (skipping)');
@@ -98,14 +148,17 @@ of(getParams()).pipe(
     }
 
     if (!android && !ios) {
-      throw 'No platform selected. nothing to do.';
+      throw '🤷 No platform selected. Nothing to do.';
     }
 
     return {
-      iconImage, iconBgColor, iconRatio, splashImage, splashBgColor, splashRatio, projectPath, android, ios, resourcesDirectory
+      iconImage, iconBg, iconRatio, splashImage, splashBg, splashRatio, projectPath, android, ios, resourcesDirectory
     }
   }),
-  switchMap(({ iconImage, iconBgColor, iconRatio, splashImage, splashBgColor, splashRatio, projectPath, android, ios, resourcesDirectory }) => {
+  switchMap(({ iconImage, iconBg, iconRatio, splashImage, splashBg, splashRatio, projectPath, android, ios, resourcesDirectory }) => {
+
+
+    const commandLine = createCmd(iconImage, iconBg, iconRatio, splashImage, splashBg, splashRatio, projectPath, android, ios);
 
     const projectConfig = {};
     const platforms = {};
@@ -147,7 +200,7 @@ of(getParams()).pipe(
         iconPath,
         ICON_SIZE,
         iconRatio,
-        iconBgColor
+        iconBg
       ),
 
       createImage(
@@ -155,10 +208,8 @@ of(getParams()).pipe(
         splashPath,
         SPLASH_SIZE,
         splashRatio,
-        splashBgColor
+        splashBg
       ),
-
-
       defer(() => {
         console.log();
         console.log("About to run cordova-res:")
@@ -174,8 +225,23 @@ of(getParams()).pipe(
         } as Options);
       }),
 
-      defer(() => promisify(rmdir)(resourcesDirectory, { recursive: true }))
+      defer(() => {
 
+        console.log();
+        console.log('🗑 Deleting temp files');
+
+        return promisify(rmdir)(resourcesDirectory, { recursive: true });
+      })
+    ).pipe(
+      finalize(() => {
+        console.log();
+        console.log("🔳 Hands-free command:");
+        console.log(`${commandLine}`);
+        console.log();
+
+        process.exit(0);
+      }
+      )
     )
   }
   )
@@ -185,7 +251,7 @@ of(getParams()).pipe(
     console.log();
     console.log("🐳 All Good!", `[${Math.round(performance.now() - initTime)}ms]`);
     console.log();
-    process.exit(0);
+
   },
   error: (error) => {
     console.log();
